@@ -1,0 +1,48 @@
+#!/bin/bash
+
+web_service='nginx'
+config_file="<path to le-renew.ini>"
+
+exp_limit=10
+
+if [ ! -f $config_file ]; then
+        echo "[ERROR] config file does not exist: $config_file"
+        logger "$0[$$]: ERROR - config file does not exist: $config_file"
+        exit 1
+fi
+
+domain=$(grep "^\s*domains" $config_file | sed "s/^\s*domains\s*=\s*//" | sed 's/(\s*)\|,.*$//')
+cert_file="/etc/letsencrypt/live/$domain/fullchain.pem"
+
+if [ ! -f $cert_file ]; then
+        echo "[ERROR] certificate file not found for domain $domain."
+        logger "$0[$$]: ERROR - certificate file not found for domain $domain."
+        exit 1
+fi
+
+exp=$(date -d "$(openssl x509 -in $cert_file -text -noout|grep "Not After"|cut -c 25-)" +%s)
+datenow=$(date -d "now" +%s)
+days_exp=$(( ($exp - $datenow) / 86400 ))
+
+echo "Checking expiration date for $domain..."
+logger "$0[$$]: Checking expiration date for $domain..."
+
+if [ "$days_exp" -gt "$exp_limit" ] ; then
+        echo "The certificate is up to date, no need for renewal ($days_exp days left)."
+        logger "$0[$$]: The certificate is up to date, no need for renewal ($days_exp days left)."
+        exit 0
+else
+        echo "The certificate for $domain is about to expire soon. Starting renewal process..."
+        logger "$0[$$]: The certificate for $domain is about to expire soon. Starting renewal process..."
+        echo "Stopping $web_service"
+        logger "Stopping $web_service"
+        /etc/init.d/$web_service stop
+        echo "Starting renewal script..."
+        logger "Starting renewal script..."
+        certbot certonly --agree-tos --renew-by-default --preferred-challenges tls-sni-01,dns --config $config_file
+        echo "Starting $web_service"
+        /etc/init.d/$web_service start
+        echo "Renewal process finished for domain $domain"
+        logger "$0[$$]: Renewal process finished for domain $domain"
+	exit 0
+fi
