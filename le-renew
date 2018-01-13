@@ -39,7 +39,7 @@ else
         /etc/init.d/$web_service stop
         echo "Starting renewal script..."
         logger "Starting renewal script..."
-        certbot certonly --agree-tos --renew-by-default --preferred-challenges tls-sni-01,dns --config $config_file
+        certbot certonly --agree-tos --renew-by-default --preferred-challenges http,dns --config $config_file
         echo "Starting $web_service"
         /etc/init.d/$web_service start
         echo "Renewal process finished for domain $domain"
